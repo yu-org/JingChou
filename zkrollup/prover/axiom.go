@@ -11,14 +11,18 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/yu-org/JingChou/zkrollup"
+	"github.com/yu-org/JingChou/zkrollup/config"
+
 	"github.com/yu-org/yu/core/types"
 )
 
 type AxiomProver struct {
-	cfg        *zkrollup.ProverConfig
-	httpClient *http.Client
-	programID  string // 注册后的 program ID
+	cfg          *config.ProverConfig
+	httpClient   *http.Client
+	programID    string        // 注册后的 program ID
+	pollInterval time.Duration // 轮询间隔
+	pollTimeout  time.Duration // 轮询超时时间
+	proofType    string        // 证明类型
 }
 
 // Axiom API 响应结构（根据文档）
@@ -56,7 +60,7 @@ type ProofInputData struct {
 	Input []string `json:"input"` // 十六进制字符串数组
 }
 
-func NewAxiomProver(cfg *zkrollup.ProverConfig) (*AxiomProver, error) {
+func NewAxiomProver(cfg *config.ProverConfig) (Prover, error) {
 	if cfg.URL == "" {
 		return nil, fmt.Errorf("axiom URL is required")
 	}
@@ -64,11 +68,32 @@ func NewAxiomProver(cfg *zkrollup.ProverConfig) (*AxiomProver, error) {
 		return nil, fmt.Errorf("axiom API key is required")
 	}
 
+	// 设置默认的轮询间隔（5秒）
+	pollInterval := 5 * time.Second
+	if cfg.PollInterval > 0 {
+		pollInterval = time.Duration(cfg.PollInterval) * time.Second
+	}
+
+	// 设置默认的轮询超时（2小时）
+	pollTimeout := 2 * time.Hour
+	if cfg.PollTimeout > 0 {
+		pollTimeout = time.Duration(cfg.PollTimeout) * time.Second
+	}
+
+	// 设置默认的证明类型（stark）
+	proofType := "stark"
+	if cfg.ProofType != "" {
+		proofType = cfg.ProofType
+	}
+
 	prover := &AxiomProver{
 		cfg: cfg,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
+		pollInterval: pollInterval,
+		pollTimeout:  pollTimeout,
+		proofType:    proofType,
 	}
 
 	// 如果配置中已有 programID，直接使用
@@ -158,17 +183,17 @@ func (a *AxiomProver) registerProgram(elfPath string) (string, error) {
 	return uploadResp.ID, nil
 }
 
-// Prove 提交区块批次并生成证明
-func (a *AxiomProver) GenerateProof(blockBatch []*types.Block, proofChan chan *ProofResult) (*ProofResult, error) {
+// GenerateProof 提交区块批次并生成证明，在后台轮询等待结果
+func (a *AxiomProver) GenerateProof(blockBatch []*types.Block, proofChan chan *ProofResult) (string, error) {
 	if len(blockBatch) == 0 {
-		return nil, fmt.Errorf("block batch is empty")
+		return "", fmt.Errorf("block batch is empty")
 	}
 
 	// 准备输入数据（根据文档，input 是十六进制字符串数组）
 	// 这里需要将 blockBatch 序列化为十六进制字符串
 	blockBytes, err := json.Marshal(blockBatch)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal blocks: %w", err)
+		return "", fmt.Errorf("failed to marshal blocks: %w", err)
 	}
 
 	// 添加 0x01 前缀表示这是字节数据
@@ -180,14 +205,14 @@ func (a *AxiomProver) GenerateProof(blockBatch []*types.Block, proofChan chan *P
 
 	bodyBytes, err := json.Marshal(inputData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal input: %w", err)
+		return "", fmt.Errorf("failed to marshal input: %w", err)
 	}
 
 	// 发送证明生成请求（根据文档，program_id 作为查询参数）
-	url := fmt.Sprintf("%s/v1/proofs?program_id=%s&proof_type=stark", a.cfg.URL, a.programID)
+	url := fmt.Sprintf("%s/v1/proofs?program_id=%s&proof_type=%s", a.cfg.URL, a.programID, a.proofType)
 	req, err := http.NewRequest("POST", url, bytes.NewReader(bodyBytes))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -195,27 +220,70 @@ func (a *AxiomProver) GenerateProof(blockBatch []*types.Block, proofChan chan *P
 
 	resp, err := a.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
+		return "", fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to create proof task, status: %d, body: %s", resp.StatusCode, string(bodyBytes))
+		return "", fmt.Errorf("failed to create proof task, status: %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	// 解析响应（根据文档，直接返回 {"id": "..."} ）
 	var createResp ProofCreateResponse
 	if err := json.NewDecoder(resp.Body).Decode(&createResp); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
+		return "", fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	// 返回任务状态
-	return &ProofResult{
-		StatusCode: ProvePending,
-		ProofID:    createResp.ID,
-		Proof:      nil,
-	}, nil
+	proofID := createResp.ID
+
+	// 启动后台 goroutine 轮询获取证明结果
+	go a.pollProofResult(proofID, proofChan)
+
+	// 立即返回 proof ID
+	return proofID, nil
+}
+
+// pollProofResult 在后台轮询获取证明结果，完成后发送到 channel
+func (a *AxiomProver) pollProofResult(proofID string, proofChan chan *ProofResult) {
+	ticker := time.NewTicker(a.pollInterval)
+	defer ticker.Stop()
+
+	// 设置最大轮询时间
+	timeout := time.After(a.pollTimeout)
+
+	for {
+		select {
+		case <-ticker.C:
+			result, err := a.GetProof(proofID)
+			if err != nil {
+				// 出错时发送失败结果
+				proofChan <- &ProofResult{
+					StatusCode: ProveFailed,
+					ProofID:    proofID,
+					Proof:      nil,
+				}
+				return
+			}
+
+			// 如果已完成或失败，发送结果并退出
+			if result.StatusCode == ProveSuccess || result.StatusCode == ProveFailed {
+				proofChan <- result
+				return
+			}
+
+			// 否则继续轮询
+
+		case <-timeout:
+			// 超时，发送超时失败结果
+			proofChan <- &ProofResult{
+				StatusCode: ProveFailed,
+				ProofID:    proofID,
+				Proof:      nil,
+			}
+			return
+		}
+	}
 }
 
 // GetProof 查询证明状态和结果
@@ -261,7 +329,7 @@ func (a *AxiomProver) GetProof(proofID string) (*ProofResult, error) {
 		// 如果需要获取实际的证明数据，需要调用 GET /v1/proofs/{proof_id}/proof/{proof_type}
 		if statusResp.ProofSize != nil && *statusResp.ProofSize > 0 {
 			// 这里可以选择获取证明数据
-			proofData, err := a.getProofData(proofID, "stark")
+			proofData, err := a.getProofData(proofID, a.proofType)
 			if err == nil {
 				proofStatus.Proof = &Proof{
 					ZKProof: proofData,
@@ -306,7 +374,7 @@ func (a *AxiomProver) getProofData(proofID string, proofType string) ([]byte, er
 
 // WaitForProof 等待证明完成（轮询）
 func (a *AxiomProver) WaitForProof(proofID string, timeout time.Duration) (*ProofResult, error) {
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(a.pollInterval)
 	defer ticker.Stop()
 
 	timeoutChan := time.After(timeout)
