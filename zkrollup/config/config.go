@@ -4,8 +4,11 @@ type Config struct {
 	BlockBatchSizeForProve uint         `toml:"block_batch_size_for_prove"`
 	Prover                 ProverConfig `toml:"prover"`
 
-	L1ChainAddr    string `toml:"l1_chain_addr"`
-	L1ContractAddr string `toml:"l1_contract_addr"`
+	L1ChainAddr    string `toml:"l1_chain_addr"`    // L1 以太坊节点地址
+	L1VerifierAddr string `toml:"l1_verifier_addr"` // OpenVM Halo2 Verifier 合约地址
+	L1ContractAddr string `toml:"l1_contract_addr"` // 其他 L1 合约地址（如果需要）
+	AppExeCommit   string `toml:"app_exe_commit"`   // App 执行承诺（可配置或动态生成）
+	AppVmCommit    string `toml:"app_vm_commit"`    // App VM 承诺（可配置或动态生成）
 }
 
 type ProverConfig struct {

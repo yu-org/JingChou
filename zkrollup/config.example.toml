@@ -1,0 +1,45 @@
+# ZK Rollup 配置示例
+
+# 区块批次大小（每多少个区块生成一次证明）
+block_batch_size_for_prove = 10
+
+# L1 以太坊配置
+l1_chain_addr = "https://eth-mainnet.alchemyapi.io/v2/YOUR_API_KEY"
+
+# OpenVM Halo2 Verifier 合约地址
+l1_verifier_addr = "0xYourVerifierContractAddress"
+
+# 其他 L1 合约地址（如果需要）
+l1_contract_addr = "0xYourOtherContractAddress"
+
+# App 执行承诺（可选，如果不配置则动态计算）
+# app_exe_commit = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+
+# App VM 承诺（可选，如果不配置则动态计算）
+# app_vm_commit = "0xfedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321"
+
+[prover]
+# Axiom API 地址
+url = "https://api.axiom.xyz"
+
+# Axiom API Key
+api_key = "your_axiom_api_key_here"
+
+# reth ELF 文件路径
+elf_path = "/path/to/reth.elf"
+
+# 已注册的 Program ID（可选，如果已注册过）
+# program_id = "prog_xxxxxxxxxxxxxx"
+
+# VM 配置 ID（可选）
+# vm_config_id = "vm_config_xxxxxxxxxxxxxx"
+
+# 轮询间隔（秒），默认 5 秒
+poll_interval = 5
+
+# 轮询超时时间（秒），默认 7200 秒（2小时）
+poll_timeout = 7200
+
+# 证明类型：stark 或 evm，默认 stark
+proof_type = "stark"
+

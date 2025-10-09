@@ -1,0 +1,31 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "bytes",
+        "name": "publicValues",
+        "type": "bytes"
+      },
+      {
+        "internalType": "bytes",
+        "name": "proofData",
+        "type": "bytes"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "appExeCommit",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "appVmCommit",
+        "type": "bytes32"
+      }
+    ],
+    "name": "verify",
+    "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]
+
