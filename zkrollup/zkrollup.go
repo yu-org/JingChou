@@ -163,29 +163,46 @@ func (z *ZkRollup) SendProofToL1(proofResult *prover.ProofResult) error {
 }
 
 // extractPublicValues 从证明结果中提取 public values
-// 这个函数需要根据你的具体需求来实现
+// ⚠️ 重要：这个函数必须返回与你的 OpenVM 程序中 reveal_public_values() 输出完全一致的数据
 func (z *ZkRollup) extractPublicValues(proofResult *prover.ProofResult) []byte {
-	// 示例实现：
-	// 1. 可以从 proof 的 PreStateRoot 和 NewStateRoot 中提取
-	// 2. 可以包含区块高度等信息
-	// 3. 需要根据你的 OpenVM 程序的输出来决定
+	// TODO: 根据你的 OpenVM Rust 程序实际输出来实现
+	//
+	// 理想情况下，publicValues 应该从 Axiom API 的响应中直接获取
+	// 而不是在这里重新构造
+	//
+	// 如果 Axiom API 返回了 publicValues:
+	// return proofResult.PublicValues
+	//
+	// 如果需要从其他地方提取，确保格式与你的 OpenVM 程序匹配：
+	//
+	// 示例 OpenVM Rust 代码：
+	// ```rust
+	// #[app]
+	// fn main() {
+	//     let from_block = ...;
+	//     let to_block = ...;
+	//     let pre_state = ...;
+	//     let new_state = ...;
+	//
+	//     reveal_public_values(&[
+	//         from_block.to_le_bytes(),  // 注意：little-endian 还是 big-endian
+	//         to_block.to_le_bytes(),
+	//         pre_state.as_bytes(),
+	//         new_state.as_bytes(),
+	//     ]);
+	// }
+	// ```
 
 	var publicValues []byte
 
 	if proofResult.Proof != nil {
-		// 方式1：直接序列化整个 Proof 结构
-		// proofBytes, _ := json.Marshal(proofResult.Proof)
-		// return proofBytes
-
-		// 方式2：按顺序拼接关键字段（示例）
-		// 注意：实际格式需要与你的 OpenVM 程序输出匹配
-
-		// FromBlockNum (8 bytes)
+		// 当前示例实现（需要根据实际情况调整）
+		// FromBlockNum (8 bytes, big-endian)
 		fromBlockBytes := make([]byte, 8)
 		binary.BigEndian.PutUint64(fromBlockBytes, proofResult.Proof.FromBlockNum)
 		publicValues = append(publicValues, fromBlockBytes...)
 
-		// ToBlockNum (8 bytes)
+		// ToBlockNum (8 bytes, big-endian)
 		toBlockBytes := make([]byte, 8)
 		binary.BigEndian.PutUint64(toBlockBytes, proofResult.Proof.ToBlockNum)
 		publicValues = append(publicValues, toBlockBytes...)
@@ -196,38 +213,64 @@ func (z *ZkRollup) extractPublicValues(proofResult *prover.ProofResult) []byte {
 		// NewStateRoot (32 bytes)
 		publicValues = append(publicValues, proofResult.Proof.NewStateRoot.Bytes()...)
 
-		// 总共 80 bytes (8 + 8 + 32 + 32)
+		// 总共 80 bytes
 	}
 
 	return publicValues
 }
 
-// calculateAppExeCommit 计算应用执行承诺
-// 这个函数需要根据你的具体需求来实现
+// calculateAppExeCommit 获取应用执行承诺
+// appExeCommit = Hash(ELF文件)，标识特定版本的程序
+// ⚠️ 这个值是固定的，不随每次执行而变化！
 func (z *ZkRollup) calculateAppExeCommit(proofResult *prover.ProofResult) [32]byte {
 	var commit [32]byte
 
-	// 示例实现：
-	// 可以根据程序的 ELF 哈希或者其他标识来计算
-	// 这里简单地使用 PreStateRoot 作为示例
-	if proofResult.Proof != nil {
-		copy(commit[:], proofResult.Proof.PreStateRoot.Bytes())
+	// 方式1：从配置中获取（如果配置了固定值）
+	if z.cfg.AppExeCommit != "" {
+		copy(commit[:], ethcommon.HexToHash(z.cfg.AppExeCommit).Bytes())
+		return commit
 	}
 
+	// 方式2：从 AxiomProver 中获取（推荐）
+	// AxiomProver 在初始化时已经计算并存储了 appExeCommit
+	if axiomProver, ok := z.prover.(*prover.AxiomProver); ok {
+		commit = axiomProver.GetAppExeCommit()
+		if commit != [32]byte{} {
+			return commit
+		}
+	}
+
+	// 如果都没有，警告并返回零值
+	logrus.Warn("AppExeCommit not available, using zero value - verification will likely fail!")
 	return commit
 }
 
 // calculateAppVmCommit 计算应用 VM 承诺
-// 这个函数需要根据你的具体需求来实现
+// appVmCommit = Hash(VM配置)，标识使用的 VM 版本和配置
+// ⚠️ 这个值应该是固定的，不随每次执行而变化！
 func (z *ZkRollup) calculateAppVmCommit(proofResult *prover.ProofResult) [32]byte {
 	var commit [32]byte
 
-	// 示例实现：
-	// 可以根据 VM 配置或者其他标识来计算
-	// 这里简单地使用 NewStateRoot 作为示例
-	if proofResult.Proof != nil {
-		copy(commit[:], proofResult.Proof.NewStateRoot.Bytes())
+	// 方式1：使用配置中的固定值（强烈推荐）
+	// 这个值应该与部署的 Verifier 合约使用的 VM 配置匹配
+	if z.cfg.AppVmCommit != "" {
+		copy(commit[:], ethcommon.HexToHash(z.cfg.AppVmCommit).Bytes())
+		return commit
 	}
 
+	// 方式2：从 Axiom API 响应中获取（如果可用）
+	// TODO: 添加字段 proofResult.AppVmCommit
+	// if proofResult.AppVmCommit != [32]byte{} {
+	//     return proofResult.AppVmCommit
+	// }
+
+	// 方式3：使用 OpenVM 默认 VM 配置的承诺
+	// 需要从 OpenVM v1.4 文档获取默认配置的哈希值
+	// 例如：
+	// defaultVmCommit := "0x1234567890abcdef..." // OpenVM v1.4 default config hash
+	// copy(commit[:], ethcommon.HexToHash(defaultVmCommit).Bytes())
+	// return commit
+
+	logrus.Warn("AppVmCommit not configured, using zero value - verification may fail!")
 	return commit
 }

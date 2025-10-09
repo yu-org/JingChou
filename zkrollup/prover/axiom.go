@@ -2,6 +2,7 @@ package prover
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -23,6 +24,7 @@ type AxiomProver struct {
 	pollInterval time.Duration // 轮询间隔
 	pollTimeout  time.Duration // 轮询超时时间
 	proofType    string        // 证明类型
+	appExeCommit [32]byte      // ELF 文件的哈希承诺
 }
 
 // Axiom API 响应结构（根据文档）
@@ -94,6 +96,15 @@ func NewAxiomProver(cfg *config.ProverConfig) (Prover, error) {
 		pollInterval: pollInterval,
 		pollTimeout:  pollTimeout,
 		proofType:    proofType,
+	}
+
+	// 计算 appExeCommit（ELF 文件的哈希）
+	if cfg.ElfPath != "" {
+		appExeCommit, err := calculateAppExeCommitFromELF(cfg.ElfPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to calculate appExeCommit: %w", err)
+		}
+		prover.appExeCommit = appExeCommit
 	}
 
 	// 如果配置中已有 programID，直接使用
@@ -432,4 +443,26 @@ func (a *AxiomProver) CancelProof(proofID string) (*ProofResult, error) {
 		ProofID:    proofID,
 		Proof:      nil,
 	}, nil
+}
+
+// calculateAppExeCommitFromELF 从 ELF 文件计算 appExeCommit
+// appExeCommit 是 ELF 文件的 SHA256 哈希，用于唯一标识程序版本
+func calculateAppExeCommitFromELF(elfPath string) ([32]byte, error) {
+	var commit [32]byte
+
+	// 读取 ELF 文件
+	elfData, err := os.ReadFile(elfPath)
+	if err != nil {
+		return commit, fmt.Errorf("failed to read ELF file: %w", err)
+	}
+
+	// 计算 SHA256 哈希
+	commit = sha256.Sum256(elfData)
+
+	return commit, nil
+}
+
+// GetAppExeCommit 获取 ELF 文件的承诺哈希
+func (a *AxiomProver) GetAppExeCommit() [32]byte {
+	return a.appExeCommit
 }
