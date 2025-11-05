@@ -15,7 +15,8 @@ import (
 type AccountTripod struct {
 	*tripod.Tripod
 
-	UDT *udt.UdtTripod `tripod:"udt"`
+	UDT    *udt.UdtTripod       `tripod:"udt"`
+	Script *script.ScriptTripod `tripod:"script"`
 }
 
 func NewAccountTripod() *AccountTripod {
