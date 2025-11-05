@@ -1,6 +1,7 @@
 package account
 
 import (
+	"encoding/json"
 	"github.com/yu-org/JingChou/udt"
 	"github.com/yu-org/yu/common"
 )
@@ -38,6 +39,10 @@ type Script struct {
 	GasToken string     `json:"gas_token,omitempty"`
 }
 
-func (s *Script) ID() ScriptID {
-	return ScriptID(common.Bytes2Hex(common.Sha256(s.Code)))
+func (s *Script) Id() (ScriptID, error) {
+	byt, err := json.Marshal(s)
+	if err != nil {
+		return "", err
+	}
+	return ScriptID(common.Bytes2Hex(common.Sha256(byt))), nil
 }
