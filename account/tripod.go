@@ -1,6 +1,7 @@
 package account
 
 import (
+	"encoding/json"
 	"errors"
 	"github.com/yu-org/yu/core/context"
 	"github.com/yu-org/yu/core/tripod"
@@ -24,7 +25,8 @@ func NewAccount() *Account {
 }
 
 func (a *Account) CheckTxn(tx *types.SignedTxn) error {
-	//TODO: verify owner script
+	//TODO: 1. verify owner script
+	//TODO: 2. verify UDTs is enough
 	return nil
 }
 
@@ -33,8 +35,9 @@ func (a *Account) InitChain(block *types.Block) {
 }
 
 type ClaimAccountRequest struct {
-	ID    AccountID `json:"id"`
-	Owner *Script   `json:"owner"`
+	Owner       ScriptID `json:"owner"`
+	OwnerScript *Script  `json:"owner_script"`
+	Args        []byte   `json:"args,omitempty"`
 }
 
 func (a *Account) ClaimAccount(ctx *context.WriteContext) error {
@@ -42,22 +45,39 @@ func (a *Account) ClaimAccount(ctx *context.WriteContext) error {
 	if err := ctx.BindJson(req); err != nil {
 		return err
 	}
-	if req.Owner == nil {
+	if req.Owner == "" {
 		return errors.New("owner-script is nil")
 	}
 
-	claimed := &CommonAccount{
-		Id:    req.ID,
-		Owner: req.Owner,
-		UDTs:  nil, //TODO: get the old UDTs from the state
+	oldAccountByt, err := a.Get([]byte(req.Owner))
+	if err != nil {
+		return err
 	}
+	oldAccount := new(CommonAccount)
+	if err = json.Unmarshal(oldAccountByt, oldAccount); err != nil {
+		return err
+	}
+
+	if oldAccount.Owner != req.Owner {
+		return errors.New("owner-script is not the same")
+	}
+	claimed := &CommonAccount{
+		Owner:   req.Owner,
+		UDTs:    oldAccount.UDTs,
+		Scripts: map[ScriptID]*Script{req.Owner: req.OwnerScript},
+	}
+	byt, err := json.Marshal(claimed)
+	if err != nil {
+		return err
+	}
+	a.Set([]byte(req.Owner), byt)
 	return nil
 }
 
 type TransferRequest struct {
-	FromID    AccountID           `json:"from_id"`
+	FromID    ScriptID            `json:"from_id"`
 	OwnerArgs []byte              `json:"owner_args"`
-	To        AccountID           `json:"to"`
+	To        ScriptID            `json:"to"`
 	UDTs      map[string]*big.Int `json:"udts"`
 }
 
@@ -70,10 +90,10 @@ func (a *Account) Transfer(ctx *context.WriteContext) error {
 }
 
 type InvokeScriptRequest struct {
-	FromID    AccountID `json:"from_id"`
-	OwnerArgs []byte    `json:"owner_args"`
-	ScriptID  string    `json:"script_id"`
-	Args      []byte    `json:"args"`
+	FromID    ScriptID `json:"from_id"`
+	OwnerArgs []byte   `json:"owner_args"`
+	ScriptID  string   `json:"script_id"`
+	Args      []byte   `json:"args"`
 }
 
 func (a *Account) InvokeScript(ctx *context.WriteContext) error {

@@ -5,27 +5,24 @@ import (
 	"github.com/yu-org/yu/common"
 )
 
-//type DefaultAccount struct {
-//	Owner   []byte     `json:"owner"`
-//	UDTs    []*udt.UDT `json:"udts"`
-//	Scripts []*Script  `json:"scripts"`
-//}
-
 type CommonAccount struct {
-	Id      AccountID           `json:"id"`
-	Owner   *Script             `json:"owner"`
-	UDTs    map[string]*udt.UDT `json:"udts"`
-	Scripts map[string]*Script  `json:"scripts"`
+	// Id      AccountID            `json:"id"`
+	Owner   ScriptID             `json:"owner"`
+	UDTs    map[string]*udt.UDT  `json:"udts"`
+	Scripts map[ScriptID]*Script `json:"scripts"`
 }
 
-type AccountID string
+type (
+	// AccountID string
+	ScriptID string
+)
 
-func (a *CommonAccount) ID() AccountID {
-	if a.Id != "" {
-		return a.Id
-	}
-	return AccountID(a.Owner.ID())
-}
+//func (a *CommonAccount) ID() AccountID {
+//	if a.Id != "" {
+//		return a.Id
+//	}
+//	return AccountID(a.Owner)
+//}
 
 type ScriptType int
 
@@ -37,9 +34,10 @@ const (
 type Script struct {
 	Type     ScriptType `json:"type"`
 	Code     []byte     `json:"code"`
+	Args     []byte     `json:"args,omitempty"`
 	GasToken string     `json:"gas_token,omitempty"`
 }
 
-func (s *Script) ID() string {
-	return common.Bytes2Hex(common.Sha256(s.Code))
+func (s *Script) ID() ScriptID {
+	return ScriptID(common.Bytes2Hex(common.Sha256(s.Code)))
 }
