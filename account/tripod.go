@@ -104,6 +104,10 @@ func (a *AccountTripod) InvokeScript(ctx *context.WriteContext) error {
 	if err := ctx.BindJson(req); err != nil {
 		return err
 	}
+	_, err := a.Script.InvokeScript(req.ScriptID, req.Args)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

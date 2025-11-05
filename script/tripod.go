@@ -32,7 +32,7 @@ func (st *ScriptTripod) GetScript(ctx *context.ReadContext) {
 	ctx.JsonOk(script)
 }
 
-func (st *ScriptTripod) InvokeScript(id string, args []byte) ([]byte, error) {
+func (st *ScriptTripod) InvokeScript(id string, args []byte) (*VMResult, error) {
 	script, err := st.GetScriptById(id)
 	if err != nil {
 		return nil, err
