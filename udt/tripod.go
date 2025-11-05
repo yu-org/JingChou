@@ -15,6 +15,7 @@ func NewUdtTripod() *UdtTripod {
 	ut := &UdtTripod{
 		Tripod: tripod.NewTripodWithName("udt"),
 	}
+	ut.SetReadings(ut.GetUDT)
 	return ut
 }
 
