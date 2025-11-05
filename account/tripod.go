@@ -126,7 +126,7 @@ func (a *AccountTripod) AddUDT(ctx *context.WriteContext) error {
 	if err != nil {
 		return err
 	}
-	return a.UDT.AddUDT(req.UDT)
+	return a.UDT.AddUdt(req.UDT)
 }
 
 func (a *AccountTripod) getAccount(id string) (*Account, error) {

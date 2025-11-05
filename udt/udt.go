@@ -6,6 +6,10 @@ import (
 
 type TokenID string
 
+func (tid TokenID) IsNative() bool {
+	return tid == NativeToken.Name
+}
+
 type UDT struct {
 	Name          TokenID     `json:"name"`    // global unique name
 	Creator       string      `json:"creator"` // Creator of the UDT, it is Script ID
