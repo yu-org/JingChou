@@ -3,6 +3,7 @@ package script
 import (
 	"encoding/json"
 	"errors"
+
 	"github.com/yu-org/yu/core/tripod"
 )
 
@@ -18,7 +19,7 @@ func NewScriptTripod() *ScriptTripod {
 	}
 }
 
-func (st *ScriptTripod) InvokeScript(id ScriptID, args []byte) ([]byte, error) {
+func (st *ScriptTripod) InvokeScript(id string, args []byte) ([]byte, error) {
 	script, err := st.GetScript(id)
 	if err != nil {
 		return nil, err
@@ -42,7 +43,7 @@ func (st *ScriptTripod) AddScript(scpt *Script) error {
 	return nil
 }
 
-func (st *ScriptTripod) GetScript(id ScriptID) (*Script, error) {
+func (st *ScriptTripod) GetScript(id string) (*Script, error) {
 	scptByt, err := st.Get([]byte(id))
 	if err != nil {
 		return nil, err

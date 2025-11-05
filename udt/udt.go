@@ -7,7 +7,8 @@ import (
 type TokenID string
 
 type UDT struct {
-	Name          TokenID     `json:"name"` // global unique name
+	Name          TokenID     `json:"name"`    // global unique name
+	Creator       string      `json:"creator"` // Creator of the UDT, it is Script ID
 	Description   string      `json:"description"`
 	OriginalToken *ChainToken `json:"original_token,omitempty"`
 	Total         *big.Int    `json:"total"`

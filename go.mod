@@ -4,11 +4,13 @@ go 1.24.0
 
 require (
 	github.com/ethereum/go-ethereum v1.16.3
+	github.com/go-sql-driver/mysql v1.7.2-0.20231213112541-0004702b931d
 	github.com/sirupsen/logrus v1.9.3
 	github.com/yu-org/yu v1.3.0
 )
 
 require (
+	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/BurntSushi/toml v1.2.1 // indirect
 	github.com/DataDog/zstd v1.5.6-0.20230824185856-869dae002e5e // indirect
 	github.com/HyperService-Consortium/go-hexutil v1.0.1 // indirect
