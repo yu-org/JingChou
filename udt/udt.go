@@ -4,13 +4,19 @@ import (
 	"math/big"
 )
 
+type TokenID string
+
 type UDT struct {
-	Name          string      `json:"name"` // global unique name
+	Name          TokenID     `json:"name"` // global unique name
 	Description   string      `json:"description"`
 	OriginalToken *ChainToken `json:"original_token,omitempty"`
 	Total         *big.Int    `json:"total"`
 	Locked        *big.Int    `json:"locked"`
 	Issued        *big.Int    `json:"issued"`
+}
+
+func (u *UDT) IsNative() bool {
+	return u.Name == NativeToken.Name
 }
 
 type ChainToken struct {

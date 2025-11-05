@@ -3,19 +3,21 @@ package account
 import (
 	"encoding/json"
 	"errors"
+	"github.com/yu-org/JingChou/script"
+	"github.com/yu-org/JingChou/udt"
 	"github.com/yu-org/yu/core/context"
 	"github.com/yu-org/yu/core/tripod"
 	"github.com/yu-org/yu/core/types"
 	"math/big"
 )
 
-type Account struct {
+type AccountTripod struct {
 	*tripod.Tripod
 }
 
-func NewAccount() *Account {
-	a := &Account{
-		Tripod: tripod.NewTripod(),
+func NewAccountTripod() *AccountTripod {
+	a := &AccountTripod{
+		Tripod: tripod.NewTripodWithName("account"),
 	}
 	a.SetInit(a)
 	a.SetTxnChecker(a)
@@ -24,23 +26,24 @@ func NewAccount() *Account {
 	return a
 }
 
-func (a *Account) CheckTxn(tx *types.SignedTxn) error {
+func (a *AccountTripod) CheckTxn(tx *types.SignedTxn) error {
 	//TODO: 1. verify owner script
 	//TODO: 2. verify UDTs is enough
+	//TODO: 3. verify UDTs include native token
 	return nil
 }
 
-func (a *Account) InitChain(block *types.Block) {
+func (a *AccountTripod) InitChain(block *types.Block) {
 
 }
 
 type ClaimAccountRequest struct {
-	Owner       ScriptID `json:"owner"`
-	OwnerScript *Script  `json:"owner_script"`
-	Args        []byte   `json:"args,omitempty"`
+	Owner       script.ScriptID `json:"owner"`
+	OwnerScript *script.Script  `json:"owner_script"`
+	Args        []byte          `json:"args,omitempty"`
 }
 
-func (a *Account) ClaimAccount(ctx *context.WriteContext) error {
+func (a *AccountTripod) ClaimAccount(ctx *context.WriteContext) error {
 	req := new(ClaimAccountRequest)
 	if err := ctx.BindJson(req); err != nil {
 		return err
@@ -53,7 +56,7 @@ func (a *Account) ClaimAccount(ctx *context.WriteContext) error {
 	if err != nil {
 		return err
 	}
-	oldAccount := new(CommonAccount)
+	oldAccount := new(Account)
 	if err = json.Unmarshal(oldAccountByt, oldAccount); err != nil {
 		return err
 	}
@@ -61,10 +64,10 @@ func (a *Account) ClaimAccount(ctx *context.WriteContext) error {
 	if oldAccount.Owner != req.Owner {
 		return errors.New("owner-script is not the same")
 	}
-	claimed := &CommonAccount{
+	claimed := &Account{
 		Owner:   req.Owner,
 		UDTs:    oldAccount.UDTs,
-		Scripts: map[ScriptID]*Script{req.Owner: req.OwnerScript},
+		Scripts: []script.ScriptID{req.Owner},
 	}
 	byt, err := json.Marshal(claimed)
 	if err != nil {
@@ -75,13 +78,13 @@ func (a *Account) ClaimAccount(ctx *context.WriteContext) error {
 }
 
 type TransferRequest struct {
-	FromID    ScriptID            `json:"from_id"`
-	OwnerArgs []byte              `json:"owner_args"`
-	To        ScriptID            `json:"to"`
-	UDTs      map[string]*big.Int `json:"udts"`
+	FromID    script.ScriptID          `json:"from_id"`
+	OwnerArgs []byte                   `json:"owner_args"`
+	To        script.ScriptID          `json:"to"`
+	UDTs      map[udt.TokenID]*big.Int `json:"udts"`
 }
 
-func (a *Account) Transfer(ctx *context.WriteContext) error {
+func (a *AccountTripod) Transfer(ctx *context.WriteContext) error {
 	req := new(TransferRequest)
 	if err := ctx.BindJson(req); err != nil {
 		return err
@@ -90,13 +93,13 @@ func (a *Account) Transfer(ctx *context.WriteContext) error {
 }
 
 type InvokeScriptRequest struct {
-	FromID    ScriptID `json:"from_id"`
-	OwnerArgs []byte   `json:"owner_args"`
-	ScriptID  string   `json:"script_id"`
-	Args      []byte   `json:"args"`
+	FromID    script.ScriptID `json:"from_id"`
+	OwnerArgs []byte          `json:"owner_args"`
+	ScriptID  string          `json:"script_id"`
+	Args      []byte          `json:"args"`
 }
 
-func (a *Account) InvokeScript(ctx *context.WriteContext) error {
+func (a *AccountTripod) InvokeScript(ctx *context.WriteContext) error {
 	req := new(InvokeScriptRequest)
 	if err := ctx.BindJson(req); err != nil {
 		return err
