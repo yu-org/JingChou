@@ -4,20 +4,39 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/yu-org/yu/core/context"
 	"github.com/yu-org/yu/core/tripod"
+	"github.com/yu-org/yu/core/types"
+	"sort"
 )
 
 type Orderbook struct {
 	*tripod.Tripod
 
-	BuyOrders  []*Order
-	SellOrders []*Order
+	BuyOrders  map[OrderPair]Orders
+	SellOrders map[OrderPair]Orders
+}
+
+func (ob *Orderbook) StartBlock(block *types.Block) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (ob *Orderbook) EndBlock(block *types.Block) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (ob *Orderbook) FinalizeBlock(block *types.Block) {
+	//TODO implement me
+	panic("implement me")
 }
 
 func NewOrderbook() *Orderbook {
 	ob := &Orderbook{
-		Tripod: tripod.NewTripod(),
+		Tripod:     tripod.NewTripod(),
+		BuyOrders:  make(map[OrderPair]Orders),
+		SellOrders: make(map[OrderPair]Orders),
 	}
-	ob.SetWritings(ob.AddOrder, ob.EatOrder, ob.CancelOrder)
+	ob.SetWritings(ob.AddOrder, ob.CancelOrder)
 	ob.SetReadings(ob.QueryOrder)
 	return ob
 }
@@ -33,18 +52,14 @@ func (ob *Orderbook) AddOrder(ctx *context.WriteContext) error {
 	if err := ctx.BindJson(req); err != nil {
 		return err
 	}
-	return nil
-}
-
-type EatOrderRequest struct {
-	OrderID string `json:"order_id"`
-	EatArgs []byte `json:"eat_args"`
-}
-
-func (ob *Orderbook) EatOrder(ctx *context.WriteContext) error {
-	req := new(EatOrderRequest)
-	if err := ctx.BindJson(req); err != nil {
-		return err
+	pair := req.Order.Pair()
+	switch req.Order.Type {
+	case Buy:
+		ob.BuyOrders[pair] = append(ob.BuyOrders[pair], req.Order)
+		sort.Sort(ob.BuyOrders[pair])
+	case Sell:
+		ob.SellOrders[pair] = append(ob.SellOrders[pair], req.Order)
+		sort.Sort(ob.SellOrders[pair])
 	}
 	return nil
 }
