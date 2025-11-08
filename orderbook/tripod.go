@@ -2,6 +2,7 @@ package orderbook
 
 import (
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/yu-org/JingChou/udt"
 	"github.com/yu-org/yu/core/context"
 	"github.com/yu-org/yu/core/tripod"
 	"github.com/yu-org/yu/core/types"
@@ -42,9 +43,10 @@ func NewOrderbook() *Orderbook {
 }
 
 type AddOrderRequest struct {
-	Order       *Order   `json:"order"`
-	FromUtxoIDs []string `json:"from_utxo_ids"`
-	Args        []byte   `json:"args"`
+	Order      *Order     `json:"order"`
+	FromTokens []*udt.UDT `json:"from_tokens"`
+	FromOrders []string   `json:"from_orders"`
+	Args       []byte     `json:"args"`
 }
 
 func (ob *Orderbook) AddOrder(ctx *context.WriteContext) error {
