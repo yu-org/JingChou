@@ -16,20 +16,21 @@ type Orderbook struct {
 	SellOrders map[OrderPair]Orders
 }
 
-func (ob *Orderbook) StartBlock(block *types.Block) {
-	//TODO implement me
-	panic("implement me")
-}
+func (ob *Orderbook) StartBlock(block *types.Block) {}
 
 func (ob *Orderbook) EndBlock(block *types.Block) {
-	//TODO implement me
-	panic("implement me")
+	matched := make([]*MatchedOrders, 0)
+	for pair, buys := range ob.BuyOrders {
+		if sells, ok := ob.SellOrders[pair]; ok {
+			matches := MatchOrders(buys, sells)
+			matched = append(matched, matches...)
+		}
+	}
+	// settle matched orders
+
 }
 
-func (ob *Orderbook) FinalizeBlock(block *types.Block) {
-	//TODO implement me
-	panic("implement me")
-}
+func (ob *Orderbook) FinalizeBlock(block *types.Block) {}
 
 func NewOrderbook() *Orderbook {
 	ob := &Orderbook{

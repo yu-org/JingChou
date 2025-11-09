@@ -63,7 +63,12 @@ const (
 	Sell
 )
 
-func MatchOrders(buys, sells []*Order) {
+type MatchedOrders struct {
+	Buys  []*Order `json:"buy"`
+	Sells []*Order `json:"sell"`
+}
+
+func MatchOrders(buys, sells []*Order) (matched []*MatchedOrders) {
 	// TODO: Optimize the matching algorithm
 	for _, buy := range buys {
 		for _, sell := range sells {
@@ -79,6 +84,7 @@ func MatchOrders(buys, sells []*Order) {
 
 		}
 	}
+	return
 }
 
 type OrderScript struct {
